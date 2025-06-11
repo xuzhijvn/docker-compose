@@ -1,0 +1,36 @@
+version: '3'
+services:
+  etcd:
+    image: bitnami/etcd:3.5.9
+    container_name: etcd
+    restart: unless-stopped
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd:2380
+      - ETCD_INITIAL_CLUSTER=etcd=http://etcd:2380
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_INITIAL_CLUSTER_TOKEN=etcd-token
+      - ETCD_DATA_DIR=/etcd_data
+      - TZ=Asia/Shanghai
+      - LANG=en_US.UTF-8
+    volumes:
+      - "./etcd/data:/etcd_data"
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+
+  # etcd可视化界面
+  etcd-keeper:
+    image: evildecay/etcdkeeper:latest
+    container_name: etcd-keeper
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+      - LANG=en_US.UTF-8
+    ports:
+      - "8080:8080"
+    depends_on:
+      - etcd 

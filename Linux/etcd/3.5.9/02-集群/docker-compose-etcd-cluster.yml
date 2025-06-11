@@ -1,0 +1,102 @@
+version: '3'
+
+networks:
+  etcd-net:
+    driver: bridge
+
+services:
+  etcd1:
+    image: bitnami/etcd:3.5.9
+    container_name: etcd1
+    restart: unless-stopped
+    networks:
+      - etcd-net
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_NAME=etcd1
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd1:2379
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd1:2380
+      - ETCD_INITIAL_CLUSTER=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_INITIAL_CLUSTER_TOKEN=etcd-cluster-token
+      - ETCD_DATA_DIR=/etcd_data
+      - TZ=Asia/Shanghai
+      - LANG=en_US.UTF-8
+    volumes:
+      - "./etcd-cluster/etcd1/data:/etcd_data"
+    ports:
+      - "12379:2379"
+      - "12380:2380"
+
+  etcd2:
+    image: bitnami/etcd:3.5.9
+    container_name: etcd2
+    restart: unless-stopped
+    networks:
+      - etcd-net
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_NAME=etcd2
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd2:2379
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd2:2380
+      - ETCD_INITIAL_CLUSTER=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_INITIAL_CLUSTER_TOKEN=etcd-cluster-token
+      - ETCD_DATA_DIR=/etcd_data
+      - TZ=Asia/Shanghai
+      - LANG=en_US.UTF-8
+    volumes:
+      - "./etcd-cluster/etcd2/data:/etcd_data"
+    ports:
+      - "22379:2379"
+      - "22380:2380"
+    depends_on:
+      - etcd1
+
+  etcd3:
+    image: bitnami/etcd:3.5.9
+    container_name: etcd3
+    restart: unless-stopped
+    networks:
+      - etcd-net
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_NAME=etcd3
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd3:2379
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd3:2380
+      - ETCD_INITIAL_CLUSTER=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_INITIAL_CLUSTER_TOKEN=etcd-cluster-token
+      - ETCD_DATA_DIR=/etcd_data
+      - TZ=Asia/Shanghai
+      - LANG=en_US.UTF-8
+    volumes:
+      - "./etcd-cluster/etcd3/data:/etcd_data"
+    ports:
+      - "32379:2379"
+      - "32380:2380"
+    depends_on:
+      - etcd2
+
+  # etcd可视化界面
+  etcd-keeper:
+    image: evildecay/etcdkeeper:latest
+    container_name: etcd-keeper-cluster
+    restart: unless-stopped
+    networks:
+      - etcd-net
+    environment:
+      - TZ=Asia/Shanghai
+      - LANG=en_US.UTF-8
+    ports:
+      - "8081:8080"
+    depends_on:
+      - etcd1
+      - etcd2
+      - etcd3 
