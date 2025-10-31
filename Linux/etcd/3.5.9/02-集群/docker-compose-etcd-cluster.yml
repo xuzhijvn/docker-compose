@@ -99,4 +99,4 @@ services:
     depends_on:
       - etcd1
       - etcd2
-      - etcd3 
+      - etcd3

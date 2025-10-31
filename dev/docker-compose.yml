@@ -1,0 +1,224 @@
+version: '3.9'
+
+networks:
+  default:
+    driver: bridge
+
+services:
+  # ZooKeeper
+  zookeeper:
+    image: registry.cn-hangzhou.aliyuncs.com/zhengqing/zookeeper
+    container_name: zookeeper
+    restart: unless-stopped
+    environment:
+      ALLOW_ANONYMOUS_LOGIN: yes
+    ports:
+      - "2181:2181"
+  #    volumes:
+  #      - "/etc/localtime:/etc/localtime:ro"
+
+  # ZooKeeper WebUI
+  zookeeper-webui:
+    image: registry.cn-hangzhou.aliyuncs.com/zhengqing/zookeeper-webui
+    container_name: zookeeper-webui
+    restart: unless-stopped
+    environment:
+      ZK_DEFAULT_NODE: zookeeper:2181
+    depends_on:
+      - zookeeper
+    ports:
+      - "9090:8080"
+
+  # Kafka
+  kafka:
+    image: registry.cn-hangzhou.aliyuncs.com/zhengqing/kafka:2.13-2.8.1
+    container_name: kafka
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      TZ: Asia/Shanghai
+      LANG: en_US.UTF-8
+      KAFKA_BROKER_ID: 0
+      # 使用容器名注册给 ZooKeeper，而不是外部域名
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      # 自动创建 topic
+      KAFKA_CREATE_TOPICS: "hello_world:1:1"
+  #    volumes:
+  #      - "/etc/localtime:/etc/localtime:ro"
+
+  # Kafka 管理界面
+  kafka-manager:
+    image: registry.cn-hangzhou.aliyuncs.com/zhengqing/kafka-manager
+    container_name: kafka-manager
+    restart: unless-stopped
+    depends_on:
+      - kafka
+    ports:
+      - "9006:9000"
+    environment:
+      TZ: Asia/Shanghai
+      LANG: en_US.UTF-8
+      ZK_HOSTS: zookeeper:2181
+      APPLICATION_SECRET: zhengqing
+      KAFKA_MANAGER_AUTH_ENABLED: "true"
+      KAFKA_MANAGER_USERNAME: admin
+      KAFKA_MANAGER_PASSWORD: 123456
+
+  # Redis
+  redis:
+    image: registry.cn-hangzhou.aliyuncs.com/zhengqing/redis:7.0.5
+    container_name: redis
+    restart: unless-stopped
+    command: redis-server /etc/redis/redis.conf --requirepass 123456 --appendonly no
+    environment:
+      TZ: Asia/Shanghai
+      LANG: en_US.UTF-8
+    volumes:
+      - "./redis/data:/data"
+      - "./redis/config/redis.conf:/etc/redis/redis.conf"
+    ports:
+      - "6379:6379"
+
+  # MySQL
+  mysql:
+    image: registry.cn-hangzhou.aliyuncs.com/zhengqing/mysql:8.0
+    container_name: mysql
+    restart: unless-stopped
+    privileged: true
+    user: root
+    ports:
+      - "3306:3306"
+    environment:
+      TZ: Asia/Shanghai
+      LANG: en_US.UTF-8
+#      MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: demo
+    volumes:
+      - "./mysql/my.cnf:/etc/mysql/my.cnf"
+      - "./mysql/data:/var/lib/mysql"
+      - "./mysql/mysql-files:/var/lib/mysql-files"
+      - "./sql:/docker-entrypoint-initdb.d"
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 5s
+      timeout: 1s
+      retries: 10
+
+  # Apollo
+  apollo:
+    image: nobodyiam/apollo-quick-start
+    container_name: apollo
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+      - "8070:8070"
+      - "8090:8090"
+    environment:
+      TZ: Asia/Shanghai
+      LANG: en_US.UTF-8
+      # Apollo数据库配置
+      APOLLO_CONFIG_DB_URL: jdbc:mysql://mysql:3306/ApolloConfigDB?characterEncoding=utf8&serverTimezone=Asia/Shanghai
+      APOLLO_CONFIG_DB_USERNAME: root
+      APOLLO_CONFIG_DB_PASSWORD: root
+      # 如果需要PortalDB也配置
+      APOLLO_PORTAL_DB_URL: jdbc:mysql://mysql:3306/ApolloPortalDB?characterEncoding=utf8&serverTimezone=Asia/Shanghai
+      APOLLO_PORTAL_DB_USERNAME: root
+      APOLLO_PORTAL_DB_PASSWORD: root
+
+  # etcd 集群
+  etcd1:
+    image: quay.io/coreos/etcd:v3.5.9-amd64
+    container_name: etcd1
+    restart: unless-stopped
+    environment:
+      ALLOW_NONE_AUTHENTICATION: yes
+      ETCD_NAME: etcd1
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd1:2379
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd1:2380
+      ETCD_INITIAL_CLUSTER: etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      ETCD_INITIAL_CLUSTER_STATE: new
+      ETCD_INITIAL_CLUSTER_TOKEN: etcd-cluster-token
+      ETCD_DATA_DIR: /etcd_data
+      TZ: Asia/Shanghai
+      LANG: en_US.UTF-8
+    volumes:
+      - "./etcd-cluster/etcd1/data:/etcd_data"
+    ports:
+      - "12379:2379"
+      - "12380:2380"
+
+  etcd2:
+    image: quay.io/coreos/etcd:v3.5.9-amd64
+    container_name: etcd2
+    restart: unless-stopped
+    depends_on:
+      - etcd1
+    environment:
+      ALLOW_NONE_AUTHENTICATION: yes
+      ETCD_NAME: etcd2
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd2:2379
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd2:2380
+      ETCD_INITIAL_CLUSTER: etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      ETCD_INITIAL_CLUSTER_STATE: new
+      ETCD_INITIAL_CLUSTER_TOKEN: etcd-cluster-token
+      ETCD_DATA_DIR: /etcd_data
+      TZ: Asia/Shanghai
+      LANG: en_US.UTF-8
+    volumes:
+      - "./etcd-cluster/etcd2/data:/etcd_data"
+    ports:
+      - "22379:2379"
+      - "22380:2380"
+
+  etcd3:
+    image: quay.io/coreos/etcd:v3.5.9-amd64
+    container_name: etcd3
+    restart: unless-stopped
+    depends_on:
+      - etcd2
+    environment:
+      ALLOW_NONE_AUTHENTICATION: yes
+      ETCD_NAME: etcd3
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd3:2379
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd3:2380
+      ETCD_INITIAL_CLUSTER: etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      ETCD_INITIAL_CLUSTER_STATE: new
+      ETCD_INITIAL_CLUSTER_TOKEN: etcd-cluster-token
+      ETCD_DATA_DIR: /etcd_data
+      TZ: Asia/Shanghai
+      LANG: en_US.UTF-8
+    volumes:
+      - "./etcd-cluster/etcd3/data:/etcd_data"
+    ports:
+      - "32379:2379"
+      - "32380:2380"
+
+  # etcd 可视化工具
+  etcd-keeper:
+    image: evildecay/etcdkeeper:latest
+    container_name: etcd-keeper
+    restart: unless-stopped
+    depends_on:
+      - etcd1
+      - etcd2
+      - etcd3
+    environment:
+      TZ: Asia/Shanghai
+      LANG: en_US.UTF-8
+    ports:
+      - "8081:8080"
