@@ -44,7 +44,7 @@ services:
       KAFKA_BROKER_ID: 0
       # 使用容器名注册给 ZooKeeper，而不是外部域名
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${KAFKA_ADVERTISED_HOST}:9092
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
       # 自动创建 topic
       KAFKA_CREATE_TOPICS: "hello_world:1:1"
