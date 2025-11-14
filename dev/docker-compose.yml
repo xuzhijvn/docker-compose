@@ -142,7 +142,7 @@ services:
     environment:
       ALLOW_NONE_AUTHENTICATION: yes
       ETCD_NAME: etcd1
-      ETCD_ADVERTISE_CLIENT_URLS: http://etcd1:2379
+      ETCD_ADVERTISE_CLIENT_URLS: http://${HOST_IP}:${ETCD1_CLIENT_PORT}
       ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
       ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
       ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd1:2380
@@ -156,7 +156,7 @@ services:
       - "./etcd-cluster/etcd1/data:/etcd_data"
     ports:
       - "12379:2379"
-      - "12380:2380"
+#      - "12380:2380"
 
   etcd2:
     image: quay.io/coreos/etcd:v3.5.9-amd64
@@ -167,7 +167,7 @@ services:
     environment:
       ALLOW_NONE_AUTHENTICATION: yes
       ETCD_NAME: etcd2
-      ETCD_ADVERTISE_CLIENT_URLS: http://etcd2:2379
+      ETCD_ADVERTISE_CLIENT_URLS: http://${HOST_IP}:${ETCD2_CLIENT_PORT}
       ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
       ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
       ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd2:2380
@@ -181,7 +181,7 @@ services:
       - "./etcd-cluster/etcd2/data:/etcd_data"
     ports:
       - "22379:2379"
-      - "22380:2380"
+#      - "22380:2380"
 
   etcd3:
     image: quay.io/coreos/etcd:v3.5.9-amd64
@@ -192,7 +192,7 @@ services:
     environment:
       ALLOW_NONE_AUTHENTICATION: yes
       ETCD_NAME: etcd3
-      ETCD_ADVERTISE_CLIENT_URLS: http://etcd3:2379
+      ETCD_ADVERTISE_CLIENT_URLS: http://${HOST_IP}:${ETCD3_CLIENT_PORT}
       ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
       ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
       ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd3:2380
@@ -206,7 +206,7 @@ services:
       - "./etcd-cluster/etcd3/data:/etcd_data"
     ports:
       - "32379:2379"
-      - "32380:2380"
+#      - "32380:2380"
 
   # etcd 可视化工具
   etcd-keeper:
