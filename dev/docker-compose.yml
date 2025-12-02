@@ -27,7 +27,7 @@ services:
     depends_on:
       - zookeeper
     ports:
-      - "9090:8080"
+      - "8082:8080"
 
   # Kafka
   kafka:
@@ -222,3 +222,67 @@ services:
       LANG: en_US.UTF-8
     ports:
       - "8081:8080"
+
+  apisix:
+    image: apache/apisix:${APISIX_IMAGE_TAG:-3.14.1-debian}
+    container_name: api6
+    restart: unless-stopped
+    volumes:
+      - ./apisix_conf/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+    depends_on:
+      - etcd1
+      - etcd2
+      - etcd3
+    ##network_mode: host
+    ports:
+      - "19180:9180/tcp"
+      - "19080:9080/tcp"
+      - "19091:9091/tcp"
+      - "19443:9443/tcp"
+      - "19092:9092/tcp"
+
+  web1:
+    image: nginx:1.19.0-alpine
+    container_name: web1
+    restart: unless-stopped
+    volumes:
+      - ./upstream/web1.conf:/etc/nginx/nginx.conf
+    ports:
+      - "19081:80/tcp"
+    environment:
+      - NGINX_PORT=80
+
+  web2:
+    image: nginx:1.19.0-alpine
+    container_name: web2
+    restart: unless-stopped
+    volumes:
+      - ./upstream/web2.conf:/etc/nginx/nginx.conf
+    ports:
+      - "19082:80/tcp"
+    environment:
+      - NGINX_PORT=80
+
+  prometheus:
+    image: prom/prometheus:v2.25.0
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus_conf/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "19090:9090"
+
+  grafana:
+    image: grafana/grafana:7.3.7
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "13000:3000"
+    volumes:
+      - "./grafana_conf/provisioning:/etc/grafana/provisioning"
+      - "./grafana_conf/dashboards:/var/lib/grafana/dashboards"
+      - "./grafana_conf/config/grafana.ini:/etc/grafana/grafana.ini"
+
+volumes:
+  etcd_data:
+    driver: local
