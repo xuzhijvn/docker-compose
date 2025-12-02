@@ -46,8 +46,13 @@ deployment:
     prefix: "/apisix"               # apisix configurations prefix
     timeout: 30                     # 30 seconds
 
+plugins:
+  - server-info
+
 plugin_attr:
   prometheus:
     export_addr:
       ip: "0.0.0.0"
       port: 9091
+  server-info:
+    report_ttl: 60
