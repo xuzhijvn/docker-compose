@@ -250,6 +250,19 @@ services:
       - "19443:9443/tcp"
       - "19092:9092/tcp"
 
+  # 调试工具容器，与APISIX共享网络
+  apisix-debug-alpine:
+    image: alpine:3.18
+    container_name: api6-debug-alpine
+    network_mode: service:apisix
+    depends_on:
+      - apisix
+    command: |
+      sh -c "
+        apk add --no-cache curl yq jq bind-tools netcat-openbsd tcpdump
+        sleep infinity
+      "
+
   web1:
     image: nginx:1.19.0-alpine
     container_name: web1
