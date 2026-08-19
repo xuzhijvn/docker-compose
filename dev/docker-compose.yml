@@ -111,6 +111,30 @@ services:
       timeout: 1s
       retries: 10
 
+  # ClickHouse
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.8
+    container_name: clickhouse
+    restart: unless-stopped
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      TZ: Asia/Shanghai
+      LANG: en_US.UTF-8
+      CLICKHOUSE_DB: demo
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: "123456"
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes:
+      - "./clickhouse/data:/var/lib/clickhouse"
+      - "./clickhouse/log:/var/log/clickhouse-server"
+    healthcheck:
+      test: [ "CMD-SHELL", "clickhouse-client --user \"$$CLICKHOUSE_USER\" --password \"$$CLICKHOUSE_PASSWORD\" --query 'SELECT 1'" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   # Apollo
   apollo:
     image: nobodyiam/apollo-quick-start
