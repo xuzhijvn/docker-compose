@@ -4,7 +4,7 @@
 
 **Goal:** Add one production-compatible Vector receiver to the new DEV Compose environment and initialize its ClickHouse destination on first startup.
 
-**Architecture:** Vector listens for APISIX RFC5424 Syslog on host TCP port 5514, validates and normalizes events, and writes accepted HTTP and Stream records to ClickHouse. ClickHouse applies the `apisix` schema through its standard first-start initialization directory. The fully controlled, disposable DEV environment fixes the ClickHouse endpoint, database, `default` account, and password directly in the Vector configuration.
+**Architecture:** Vector listens for APISIX RFC5424 Syslog on fixed container TCP port 5514, validates and normalizes events, and writes accepted HTTP and Stream records to ClickHouse. ClickHouse applies the `apisix` schema through its standard first-start initialization directory. The fully controlled, disposable DEV environment fixes Vector paths and all source/sink connection values directly in the Vector configuration.
 
 **Tech Stack:** Docker Compose, Vector 0.57.0, ClickHouse 25.8, YAML, SQL
 

@@ -1,4 +1,4 @@
-data_dir: ${VECTOR_DATA_DIR:-/var/lib/vector}
+data_dir: /var/lib/vector
 
 api:
   enabled: false
@@ -7,7 +7,7 @@ sources:
   apisix_syslog:
     type: syslog
     mode: tcp
-    address: ${VECTOR_SYSLOG_ADDRESS:-0.0.0.0:5514}
+    address: 0.0.0.0:5514
     max_length: 1048576
     tls:
       enabled: false

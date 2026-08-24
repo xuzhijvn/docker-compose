@@ -144,8 +144,6 @@ services:
     restart: unless-stopped
     environment:
       VECTOR_CLUSTER_ID: dev
-      VECTOR_SYSLOG_ADDRESS: 0.0.0.0:5514
-      VECTOR_DATA_DIR: /var/lib/vector
       OBSERVABILITY_ATTRIBUTE_ALLOWLIST: ""
     command:
       - --config
