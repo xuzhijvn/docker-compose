@@ -129,11 +129,53 @@ services:
     volumes:
       - "./clickhouse/data:/var/lib/clickhouse"
       - "./clickhouse/log:/var/log/clickhouse-server"
+      - "./clickhouse/init:/docker-entrypoint-initdb.d:ro"
     healthcheck:
       test: [ "CMD-SHELL", "clickhouse-client --user \"$$CLICKHOUSE_USER\" --password \"$$CLICKHOUSE_PASSWORD\" --query 'SELECT 1'" ]
       interval: 5s
       timeout: 3s
       retries: 10
+      start_period: 10s
+
+  # APISIX Syslog 接收与 ClickHouse 写入
+  vector:
+    image: timberio/vector:0.57.0-debian
+    container_name: vector
+    restart: unless-stopped
+    environment:
+      VECTOR_CLUSTER_ID: dev
+      VECTOR_SYSLOG_ADDRESS: 0.0.0.0:5514
+      VECTOR_DATA_DIR: /var/lib/vector
+      OBSERVABILITY_ATTRIBUTE_ALLOWLIST: ""
+      CLICKHOUSE_ENDPOINT: http://clickhouse:8123
+      CLICKHOUSE_DATABASE: apisix
+      CLICKHOUSE_WRITER_USER: default
+      CLICKHOUSE_WRITER_PASSWORD: "123456"
+    command:
+      - --config
+      - /etc/vector/vector.yaml
+      - --config
+      - /etc/vector/docker-quarantine.yaml
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    ports:
+      - "5514:5514/tcp"
+    volumes:
+      - "./vector/vector.yaml:/etc/vector/vector.yaml:ro"
+      - "./vector/docker-quarantine.yaml:/etc/vector/docker-quarantine.yaml:ro"
+      - "vector_data:/var/lib/vector"
+    healthcheck:
+      test: [ "CMD", "vector", "validate", "--no-environment", "--config", "/etc/vector/vector.yaml", "--config", "/etc/vector/docker-quarantine.yaml" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    logging:
+      driver: local
+      options:
+        max-size: 50m
+        max-file: "5"
 
   # Apollo
   apollo:
@@ -367,4 +409,6 @@ services:
 
 volumes:
   etcd_data:
+    driver: local
+  vector_data:
     driver: local

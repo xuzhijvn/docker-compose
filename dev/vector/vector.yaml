@@ -1,0 +1,392 @@
+data_dir: ${VECTOR_DATA_DIR:-/var/lib/vector}
+
+api:
+  enabled: false
+
+sources:
+  apisix_syslog:
+    type: syslog
+    mode: tcp
+    address: ${VECTOR_SYSLOG_ADDRESS:-0.0.0.0:5514}
+    max_length: 1048576
+    tls:
+      enabled: false
+
+transforms:
+  normalize_apisix_event:
+    type: remap
+    inputs:
+      - apisix_syslog
+    drop_on_abort: false
+    drop_on_error: false
+    source: |-
+      received_at = now()
+      trusted_cluster_id = get_env_var("VECTOR_CLUSTER_ID") ?? ""
+      attribute_allowlist = compact(split(
+        get_env_var("OBSERVABILITY_ATTRIBUTE_ALLOWLIST") ?? "",
+        ","
+      ))
+
+      raw_message = to_string(.message) ?? ""
+      parsed, parse_error = parse_json(raw_message)
+      payload = object(parsed) ?? {}
+      reason = ""
+
+      if trusted_cluster_id == "" {
+        reason = "receiver_cluster_id_missing"
+      } else if parse_error != null || !is_object(parsed) {
+        reason = "invalid_json"
+      }
+
+      payload_cluster_id = to_string(payload.cluster_id) ?? ""
+      if reason == "" && payload_cluster_id == "" {
+        reason = "cluster_id_missing"
+      } else if reason == "" && payload_cluster_id != trusted_cluster_id {
+        reason = "cluster_id_mismatch"
+      }
+
+      route_id = to_string(payload.route_id) ?? ""
+      workspace_id = ""
+      if reason == "" && route_id == "" {
+        reason = "route_id_missing"
+      } else if reason == "" {
+        standard, standard_error = parse_regex(
+          route_id,
+          r'^(?P<workspace_id>[1-9][0-9]*)-(?P<resource_id>.+)$'
+        )
+        compat, compat_error = parse_regex(
+          route_id,
+          r'^(?P<resource_id>.+)__(?P<workspace_id>[1-9][0-9]*)$'
+        )
+
+        standard_matches = standard_error == null
+        compat_matches = compat_error == null
+        if standard_matches == compat_matches {
+          reason = "route_id_invalid"
+        } else if standard_matches {
+          workspace_id = to_string(standard.workspace_id)
+        } else {
+          workspace_id = to_string(compat.workspace_id)
+        }
+      }
+
+      forbidden_field = match(
+        encode_json(payload),
+        r'(?i)"(?:body|request_body|response_body|authorization|cookie)"\s*:'
+      )
+      if reason == "" && forbidden_field {
+        reason = "forbidden_field"
+      }
+
+      event_type = to_string(payload.event_type) ?? ""
+      if reason == "" && !includes(["http_access", "stream_session"], event_type) {
+        reason = "event_type_invalid"
+      }
+
+      if reason == "" && event_type == "http_access" {
+        http_status = to_int(payload.status) ?? -1
+        http_request_bytes = to_int(payload.request_bytes) ?? -1
+        http_response_bytes = to_int(payload.response_bytes) ?? -1
+        http_duration_ms = -1
+        if payload.duration_ms != null {
+          http_duration_ms = to_int(payload.duration_ms) ?? -1
+        } else if payload.duration_seconds != null {
+          http_duration_seconds = to_float(payload.duration_seconds) ?? -1.0
+          http_duration_ms = to_int(http_duration_seconds * 1000.0)
+        }
+        http_upstream_duration_ms = 0
+        if payload.upstream_duration_ms != null {
+          http_upstream_duration_ms = to_int(payload.upstream_duration_ms) ?? -1
+        } else if payload.upstream_duration_seconds != null {
+          http_upstream_duration_seconds = to_float(
+            payload.upstream_duration_seconds
+          ) ?? -1.0
+          http_upstream_duration_ms = to_int(
+            http_upstream_duration_seconds * 1000.0
+          )
+        }
+
+        invalid_http_field = !is_string(payload.method) ||
+          !is_string(payload.scheme) ||
+          !is_string(payload.host) ||
+          !is_string(payload.path) ||
+          payload.status == null || http_status < 0 || http_status > 65535 ||
+          payload.request_bytes == null || http_request_bytes < 0 ||
+          payload.response_bytes == null || http_response_bytes < 0 ||
+          http_duration_ms < 0 ||
+          http_upstream_duration_ms < 0
+        if invalid_http_field {
+          reason = "field_type_invalid"
+        }
+      } else if reason == "" && event_type == "stream_session" {
+        stream_client_port = to_int(payload.client_port) ?? -1
+        stream_server_port = to_int(payload.server_port) ?? -1
+        stream_upstream_bytes = to_int(payload.upstream_bytes) ?? -1
+        stream_downstream_bytes = to_int(payload.downstream_bytes) ?? -1
+        stream_duration_ms = 0
+        if payload.duration_ms != null {
+          stream_duration_ms = to_int(payload.duration_ms) ?? -1
+        } else if payload.duration_seconds != null {
+          stream_duration_seconds = to_float(payload.duration_seconds) ?? -1.0
+          stream_duration_ms = to_int(stream_duration_seconds * 1000.0)
+        }
+
+        invalid_stream_field = !is_string(payload.transport_protocol) ||
+          payload.client_port == null ||
+          stream_client_port < 0 || stream_client_port > 65535 ||
+          payload.server_port == null ||
+          stream_server_port < 0 || stream_server_port > 65535 ||
+          payload.upstream_bytes == null || stream_upstream_bytes < 0 ||
+          payload.downstream_bytes == null || stream_downstream_bytes < 0 ||
+          stream_duration_ms < 0
+        if invalid_stream_field {
+          reason = "field_type_invalid"
+        }
+      }
+
+      schema_version = 1
+      if payload.schema_version != null {
+        schema_version = to_int(payload.schema_version) ?? 0
+      }
+      if reason == "" && schema_version != 1 {
+        reason = "schema_version_unsupported"
+      }
+
+      event_time_text = to_string(payload.event_time) ?? ""
+      event_time, event_time_error = parse_timestamp(event_time_text, format: "%+")
+      if reason == "" && event_time_error != null {
+        reason = "event_time_invalid"
+      }
+
+      client_ip_text = to_string(payload.client_ip) ?? ""
+      client_ip, client_ip_error = ip_to_ipv6(client_ip_text)
+      if reason == "" && client_ip_error != null {
+        reason = "client_ip_invalid"
+      }
+
+      request_id = to_string(payload.request_id) ?? ""
+      trace_id = to_string(payload.trace_id) ?? ""
+
+      if reason != "" {
+        . = {
+          "_accepted": false,
+          "received_at": received_at,
+          "reason": reason,
+          "cluster_id": trusted_cluster_id,
+          "route_id": route_id,
+          "schema_version": schema_version
+        }
+      } else {
+        attributes = {}
+        if is_object(payload.attributes) {
+          for_each(keys(object!(payload.attributes))) -> |_index, key| {
+            if includes(attribute_allowlist, key) {
+              attribute_value = get!(payload.attributes, [key])
+              if is_string(attribute_value) {
+                attributes = set!(attributes, [key], attribute_value)
+              }
+            }
+          }
+        }
+
+        event_id = sha2(join!([
+          trusted_cluster_id,
+          route_id,
+          format_timestamp!(event_time, format: "%+"),
+          request_id,
+          client_ip,
+          event_type
+        ], "|"), variant: "SHA-256")
+
+        protocol = "stream"
+        if event_type == "http_access" {
+          protocol = "http"
+        }
+
+        common = {
+          "_accepted": true,
+          "_protocol": protocol,
+          "event_id": event_id,
+          "event_time": event_time,
+          "received_at": received_at,
+          "cluster_id": trusted_cluster_id,
+          "workspace_id": workspace_id,
+          "route_id": route_id,
+          "route_name": to_string(payload.route_name) ?? "",
+          "client_ip": client_ip,
+          "request_id": request_id,
+          "trace_id": trace_id,
+          "schema_version": schema_version,
+          "attributes": attributes
+        }
+
+        if event_type == "http_access" {
+          path = replace(to_string(payload.path) ?? "", r'\?.*$', "")
+          duration_ms = 0
+          if payload.duration_ms != null {
+            duration_ms = to_int(payload.duration_ms) ?? 0
+          } else {
+            duration_seconds = to_float(payload.duration_seconds) ?? 0.0
+            duration_ms = to_int(duration_seconds * 1000.0)
+          }
+          upstream_duration_ms = null
+          if payload.upstream_duration_ms != null {
+            upstream_duration_ms = to_int(payload.upstream_duration_ms) ?? null
+          } else if payload.upstream_duration_seconds != null {
+            upstream_duration_seconds = to_float(
+              payload.upstream_duration_seconds
+            ) ?? 0.0
+            upstream_duration_ms = to_int(
+              upstream_duration_seconds * 1000.0
+            )
+          }
+          . = merge(common, {
+            "method": upcase(to_string(payload.method) ?? ""),
+            "scheme": downcase(to_string(payload.scheme) ?? ""),
+            "host": to_string(payload.host) ?? "",
+            "path": path,
+            "status": to_int(payload.status) ?? 0,
+            "request_bytes": to_int(payload.request_bytes) ?? 0,
+            "response_bytes": to_int(payload.response_bytes) ?? 0,
+            "duration_ms": duration_ms,
+            "upstream_duration_ms": upstream_duration_ms,
+            "upstream_address": to_string(payload.upstream_address) ?? "",
+            "protocol_version": to_string(payload.protocol_version) ?? ""
+          })
+        } else {
+          duration_ms = null
+          if payload.duration_ms != null {
+            duration_ms = to_int(payload.duration_ms) ?? null
+          } else if payload.duration_seconds != null {
+            duration_seconds = to_float(payload.duration_seconds) ?? 0.0
+            duration_ms = to_int(duration_seconds * 1000.0)
+          }
+          session_start_time = null
+          session_start_text = to_string(payload.session_start_time) ?? ""
+          if session_start_text != "" {
+            session_start_time = parse_timestamp(
+              session_start_text,
+              format: "%+"
+            ) ?? null
+          } else if duration_ms != null {
+            event_time_millis = to_unix_timestamp(
+              event_time,
+              unit: "milliseconds"
+            )
+            session_start_millis = (event_time_millis - duration_ms) ?? event_time_millis
+            session_start_time = from_unix_timestamp(
+              session_start_millis,
+              unit: "milliseconds"
+            ) ?? null
+          }
+
+          . = merge(common, {
+            "session_start_time": session_start_time,
+            "client_port": to_int(payload.client_port) ?? 0,
+            "server_port": to_int(payload.server_port) ?? 0,
+            "transport_protocol": downcase(
+              to_string(payload.transport_protocol) ?? ""
+            ),
+            "duration_ms": duration_ms,
+            "upstream_bytes": to_int(payload.upstream_bytes) ?? 0,
+            "downstream_bytes": to_int(payload.downstream_bytes) ?? 0,
+            "upstream_address": to_string(payload.upstream_address) ?? "",
+            "connection_result": downcase(
+              to_string(payload.connection_result) ?? ""
+            ),
+            "sni": to_string(payload.sni) ?? "",
+            "tls_version": to_string(payload.tls_version) ?? "",
+            "tls_cipher": to_string(payload.tls_cipher) ?? ""
+          })
+        }
+      }
+
+  route_http:
+    type: filter
+    inputs:
+      - normalize_apisix_event
+    condition: ._accepted == true && ._protocol == "http"
+
+  route_stream:
+    type: filter
+    inputs:
+      - normalize_apisix_event
+    condition: ._accepted == true && ._protocol == "stream"
+
+  route_quarantine:
+    type: filter
+    inputs:
+      - normalize_apisix_event
+    condition: ._accepted == false
+
+  accepted_http:
+    type: remap
+    inputs:
+      - route_http
+    source: |-
+      del(._accepted)
+      del(._protocol)
+
+  accepted_stream:
+    type: remap
+    inputs:
+      - route_stream
+    source: |-
+      del(._accepted)
+      del(._protocol)
+
+  quarantined:
+    type: remap
+    inputs:
+      - route_quarantine
+    source: |-
+      del(._accepted)
+
+sinks:
+  clickhouse_http_access:
+    type: clickhouse
+    inputs:
+      - accepted_http
+    endpoint: ${CLICKHOUSE_ENDPOINT:-http://clickhouse:8123}
+    database: ${CLICKHOUSE_DATABASE:-apisix}
+    table: http_access_events
+    format: json_each_row
+    compression: gzip
+    skip_unknown_fields: false
+    auth:
+      strategy: basic
+      user: ${CLICKHOUSE_WRITER_USER:-vector_writer}
+      password: ${CLICKHOUSE_WRITER_PASSWORD:-}
+    healthcheck:
+      enabled: false
+    batch:
+      max_events: 1000
+      timeout_secs: 2
+    buffer:
+      type: disk
+      max_size: 1073741824
+      when_full: block
+
+  clickhouse_stream_session:
+    type: clickhouse
+    inputs:
+      - accepted_stream
+    endpoint: ${CLICKHOUSE_ENDPOINT:-http://clickhouse:8123}
+    database: ${CLICKHOUSE_DATABASE:-apisix}
+    table: stream_session_events
+    format: json_each_row
+    compression: gzip
+    skip_unknown_fields: false
+    auth:
+      strategy: basic
+      user: ${CLICKHOUSE_WRITER_USER:-vector_writer}
+      password: ${CLICKHOUSE_WRITER_PASSWORD:-}
+    healthcheck:
+      enabled: false
+    batch:
+      max_events: 1000
+      timeout_secs: 2
+    buffer:
+      type: disk
+      max_size: 1073741824
+      when_full: block

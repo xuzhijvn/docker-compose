@@ -1,0 +1,8 @@
+sinks:
+  quarantine_console:
+    type: console
+    inputs:
+      - quarantined
+    target: stdout
+    encoding:
+      codec: json
