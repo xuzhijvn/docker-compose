@@ -160,7 +160,7 @@ services:
       - "./vector/docker-quarantine.yaml:/etc/vector/docker-quarantine.yaml:ro"
       - "vector_data:/var/lib/vector"
     healthcheck:
-      test: [ "CMD", "vector", "validate", "--no-environment", "--config", "/etc/vector/vector.yaml", "--config", "/etc/vector/docker-quarantine.yaml" ]
+      test: [ "CMD", "vector", "validate", "--no-environment", "/etc/vector/vector.yaml", "/etc/vector/docker-quarantine.yaml" ]
       interval: 10s
       timeout: 5s
       retries: 10
