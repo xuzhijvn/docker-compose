@@ -347,16 +347,16 @@ sinks:
     type: clickhouse
     inputs:
       - accepted_http
-    endpoint: ${CLICKHOUSE_ENDPOINT:-http://clickhouse:8123}
-    database: ${CLICKHOUSE_DATABASE:-apisix}
+    endpoint: http://clickhouse:8123
+    database: apisix
     table: http_access_events
     format: json_each_row
     compression: gzip
     skip_unknown_fields: false
     auth:
       strategy: basic
-      user: ${CLICKHOUSE_WRITER_USER:-vector_writer}
-      password: ${CLICKHOUSE_WRITER_PASSWORD:-}
+      user: default
+      password: "123456"
     healthcheck:
       enabled: false
     batch:
@@ -371,16 +371,16 @@ sinks:
     type: clickhouse
     inputs:
       - accepted_stream
-    endpoint: ${CLICKHOUSE_ENDPOINT:-http://clickhouse:8123}
-    database: ${CLICKHOUSE_DATABASE:-apisix}
+    endpoint: http://clickhouse:8123
+    database: apisix
     table: stream_session_events
     format: json_each_row
     compression: gzip
     skip_unknown_fields: false
     auth:
       strategy: basic
-      user: ${CLICKHOUSE_WRITER_USER:-vector_writer}
-      password: ${CLICKHOUSE_WRITER_PASSWORD:-}
+      user: default
+      password: "123456"
     healthcheck:
       enabled: false
     batch:
