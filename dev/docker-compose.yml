@@ -143,7 +143,6 @@ services:
     container_name: vector
     restart: unless-stopped
     environment:
-      VECTOR_CLUSTER_ID: dev
       OBSERVABILITY_ATTRIBUTE_ALLOWLIST: ""
     command:
       - --config

@@ -21,7 +21,6 @@ transforms:
     drop_on_error: false
     source: |-
       received_at = now()
-      trusted_cluster_id = get_env_var("VECTOR_CLUSTER_ID") ?? ""
       attribute_allowlist = compact(split(
         get_env_var("OBSERVABILITY_ATTRIBUTE_ALLOWLIST") ?? "",
         ","
@@ -32,17 +31,15 @@ transforms:
       payload = object(parsed) ?? {}
       reason = ""
 
-      if trusted_cluster_id == "" {
-        reason = "receiver_cluster_id_missing"
-      } else if parse_error != null || !is_object(parsed) {
+      if parse_error != null || !is_object(parsed) {
         reason = "invalid_json"
       }
 
       payload_cluster_id = to_string(payload.cluster_id) ?? ""
       if reason == "" && payload_cluster_id == "" {
         reason = "cluster_id_missing"
-      } else if reason == "" && payload_cluster_id != trusted_cluster_id {
-        reason = "cluster_id_mismatch"
+      } else if reason == "" && !match(payload_cluster_id, r'^[1-9][0-9]*$') {
+        reason = "cluster_id_invalid"
       }
 
       route_id = to_string(payload.route_id) ?? ""
@@ -172,7 +169,7 @@ transforms:
           "_accepted": false,
           "received_at": received_at,
           "reason": reason,
-          "cluster_id": trusted_cluster_id,
+          "cluster_id": payload_cluster_id,
           "route_id": route_id,
           "schema_version": schema_version
         }
@@ -190,7 +187,7 @@ transforms:
         }
 
         event_id = sha2(join!([
-          trusted_cluster_id,
+          payload_cluster_id,
           route_id,
           format_timestamp!(event_time, format: "%+"),
           request_id,
@@ -209,7 +206,7 @@ transforms:
           "event_id": event_id,
           "event_time": event_time,
           "received_at": received_at,
-          "cluster_id": trusted_cluster_id,
+          "cluster_id": payload_cluster_id,
           "workspace_id": workspace_id,
           "route_id": route_id,
           "route_name": to_string(payload.route_name) ?? "",

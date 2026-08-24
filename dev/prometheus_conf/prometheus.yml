@@ -37,4 +37,8 @@ scrape_configs:
     scrape_interval: 5s
     metrics_path: "/apisix/prometheus/metrics"
     static_configs:
+      # Add another target group for each APISIX cluster; cluster_id is one
+      # stable platform ID per group, never a comma-separated list.
       - targets: ["apisix:9091"]
+        labels:
+          cluster_id: "1"
