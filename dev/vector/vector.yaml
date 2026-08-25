@@ -348,6 +348,7 @@ sinks:
     database: apisix
     table: http_access_events
     format: json_each_row
+    date_time_best_effort: true
     compression: gzip
     skip_unknown_fields: false
     auth:
@@ -372,6 +373,7 @@ sinks:
     database: apisix
     table: stream_session_events
     format: json_each_row
+    date_time_best_effort: true
     compression: gzip
     skip_unknown_fields: false
     auth:
