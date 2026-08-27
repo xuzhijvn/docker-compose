@@ -1,0 +1,24 @@
+{
+  "log_format": {
+    "event_type": "http_access",
+    "event_time": "$time_iso8601",
+    "cluster_id": "replace-with-platform-cluster-id",
+    "route_name": "$route_name",
+    "client_ip": "$remote_addr",
+    "apisix_node_ip": "$server_addr",
+    "request_id": "$request_id",
+    "trace_id": "$http_x_b3_traceid",
+    "schema_version": "1",
+    "method": "$request_method",
+    "scheme": "$scheme",
+    "host": "$host",
+    "path": "$uri",
+    "status": "$status",
+    "request_bytes": "$request_length",
+    "response_bytes": "$bytes_sent",
+    "duration_seconds": "$request_time",
+    "upstream_duration_seconds": "$upstream_response_time",
+    "upstream_address": "$upstream_addr",
+    "protocol_version": "$server_protocol"
+  }
+}

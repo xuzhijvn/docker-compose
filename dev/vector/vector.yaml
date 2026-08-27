@@ -161,6 +161,14 @@ transforms:
         reason = "client_ip_invalid"
       }
 
+      apisix_node_ip_text = to_string(payload.apisix_node_ip) ?? ""
+      apisix_node_ip, apisix_node_ip_error = ip_to_ipv6(apisix_node_ip_text)
+      if reason == "" && apisix_node_ip_text == "" {
+        reason = "apisix_node_ip_missing"
+      } else if reason == "" && apisix_node_ip_error != null {
+        reason = "apisix_node_ip_invalid"
+      }
+
       request_id = to_string(payload.request_id) ?? ""
       trace_id = to_string(payload.trace_id) ?? ""
 
@@ -192,6 +200,7 @@ transforms:
           format_timestamp!(event_time, format: "%+"),
           request_id,
           client_ip,
+          apisix_node_ip,
           event_type
         ], "|"), variant: "SHA-256")
 
@@ -211,6 +220,7 @@ transforms:
           "route_id": route_id,
           "route_name": to_string(payload.route_name) ?? "",
           "client_ip": client_ip,
+          "apisix_node_ip": apisix_node_ip,
           "request_id": request_id,
           "trace_id": trace_id,
           "schema_version": schema_version,

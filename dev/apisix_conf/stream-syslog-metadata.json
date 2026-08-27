@@ -1,0 +1,24 @@
+{
+  "log_format": {
+    "event_type": "stream_session",
+    "event_time": "$time_iso8601",
+    "cluster_id": "replace-with-platform-cluster-id",
+    "route_name": "$route_name",
+    "client_ip": "$remote_addr",
+    "apisix_node_ip": "$server_addr",
+    "request_id": "$connection",
+    "trace_id": "",
+    "schema_version": "1",
+    "client_port": "$remote_port",
+    "server_port": "$server_port",
+    "transport_protocol": "$protocol",
+    "duration_seconds": "$session_time",
+    "upstream_bytes": "$bytes_received",
+    "downstream_bytes": "$bytes_sent",
+    "upstream_address": "$upstream_addr",
+    "connection_result": "$status",
+    "sni": "$ssl_preread_server_name",
+    "tls_version": "$ssl_protocol",
+    "tls_cipher": "$ssl_cipher"
+  }
+}
